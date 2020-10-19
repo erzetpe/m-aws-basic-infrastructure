@@ -27,6 +27,9 @@ release: guard-VERSION guard-IMAGE guard-USER
 		-t $(IMAGE_NAME) \
 		.
 
+print-%:
+	@echo "$($*)"
+
 guard-%:
 	@if [ "${${*}}" = "" ]; then \
 		echo "Environment variable $* not set"; \
