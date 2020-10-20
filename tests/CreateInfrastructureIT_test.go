@@ -3,17 +3,18 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
-
-	"github.com/aws/aws-sdk-go/service/resourcegroups"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/resourcegroups"
 	"github.com/epiphany-platform/aws-basic-infrastructure/tests/utils"
 )
 
@@ -39,7 +40,7 @@ func TestMain(m *testing.M) {
 	setup()
 	log.Println("Run tests")
 	exitVal := m.Run()
-	cleanup()
+	//cleanup()
 
 	os.Exit(exitVal)
 }
@@ -76,44 +77,64 @@ func cleanup() {
 
 func TestInitShouldCreateProperFileAndFolder(t *testing.T) {
 	// given
-	var stdout, stderr bytes.Buffer
+	stateFilePath := "shared/state.yml"
+
+	data, err := ioutil.ReadFile(stateFilePath)
+
+	if err != nil {
+		t.Fatal("Cannot read state file: ", stateFilePath)
+	}
+
+	fileContent := string(data)
+	expectedFileContentRegexp := "kind: state\nawsbi:\n  status: initialized"
 
 	// when
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "init", "M_NAME="+moduleName)
+	utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "init", "M_NAME="+moduleName)
 
-	// then
-	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+	matched, _ := regexp.MatchString(expectedFileContentRegexp, fileContent)
 
-	// if diff := deep.Equal(output, tt.wantOutput); diff != nil {
-	// 	t.Error(diff)
-	// }
+	if !matched {
+		t.Error("Expected to find expression matching:\n", expectedFileContentRegexp, "\nbut found:\n", fileContent)
+	}
+
 }
 
-func TestOnPlanShouldDisplayPlan(t *testing.T) {
+func TestOnPlanWithDefaultsShouldDisplayPlan(t *testing.T) {
 	// given
 	var stdout, stderr bytes.Buffer
+
+	expectedOutputRegexp := ".*Plan: 14 to add, 0 to change, 0 to destroy.*"
 
 	// when
 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan", awsAccessKey, awsSecretKey)
 
+	if stderr.Len() > 0 {
+		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
+	}
+
 	// then
-	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+	outStr := string(stdout.Bytes())
+	//log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+
+	matched, _ := regexp.MatchString(expectedOutputRegexp, outStr)
+
+	if !matched {
+		t.Error("Expected to find expression matching:\n", expectedOutputRegexp, "\nbut found:\n", outStr)
+	}
 
 }
 
-func TestOnApplyShouldCreateEnvironment(t *testing.T) {
-	// given
-	var stdout, stderr bytes.Buffer
+// func TestOnApplyShouldCreateEnvironment(t *testing.T) {
+// 	// given
+// 	var stdout, stderr bytes.Buffer
 
-	// when
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "apply", awsAccessKey, awsSecretKey)
+// 	// when
+// 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "apply", awsAccessKey, awsSecretKey)
 
-	// then
-	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
-}
+// 	// then
+// 	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+// 	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+// }
 
 func TestShouldCheckNumberOfVms(t *testing.T) {
 	// given
@@ -175,23 +196,23 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 
 }
 
-func TestOnDestroyPlanShouldDisplayDestroyPlan(t *testing.T) {
-	// given
-	var stdout, stderr bytes.Buffer
+// func TestOnDestroyPlanShouldDisplayDestroyPlan(t *testing.T) {
+// 	// given
+// 	var stdout, stderr bytes.Buffer
 
-	// when
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan-destroy", awsAccessKey, awsSecretKey)
+// 	// when
+// 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan-destroy", awsAccessKey, awsSecretKey)
 
-	//then
-	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
-}
+// 	//then
+// 	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+// 	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+// }
 
-func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
-	var stdout, stderr bytes.Buffer
+// func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
+// 	var stdout, stderr bytes.Buffer
 
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "destroy", awsAccessKey, awsSecretKey)
+// 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "destroy", awsAccessKey, awsSecretKey)
 
-	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
-}
+// 	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+// 	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+// }
