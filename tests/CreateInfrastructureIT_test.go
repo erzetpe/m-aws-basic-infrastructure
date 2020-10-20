@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 	setup()
 	log.Println("Run tests")
 	exitVal := m.Run()
-	//cleanup()
+	cleanup()
 
 	os.Exit(exitVal)
 }
@@ -78,6 +78,10 @@ func cleanup() {
 func TestInitShouldCreateProperFileAndFolder(t *testing.T) {
 	// given
 	stateFilePath := "shared/state.yml"
+	expectedFileContentRegexp := "kind: state\nawsbi:\n  status: initialized"
+
+	// when
+	utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "init", "M_NAME="+moduleName)
 
 	data, err := ioutil.ReadFile(stateFilePath)
 
@@ -86,13 +90,10 @@ func TestInitShouldCreateProperFileAndFolder(t *testing.T) {
 	}
 
 	fileContent := string(data)
-	expectedFileContentRegexp := "kind: state\nawsbi:\n  status: initialized"
-
-	// when
-	utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "init", "M_NAME="+moduleName)
 
 	matched, _ := regexp.MatchString(expectedFileContentRegexp, fileContent)
 
+	// then
 	if !matched {
 		t.Error("Expected to find expression matching:\n", expectedFileContentRegexp, "\nbut found:\n", fileContent)
 	}
@@ -112,33 +113,43 @@ func TestOnPlanWithDefaultsShouldDisplayPlan(t *testing.T) {
 		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
 	}
 
-	// then
 	outStr := string(stdout.Bytes())
-	//log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
 
 	matched, _ := regexp.MatchString(expectedOutputRegexp, outStr)
 
+	// then
 	if !matched {
 		t.Error("Expected to find expression matching:\n", expectedOutputRegexp, "\nbut found:\n", outStr)
 	}
 
 }
 
-// func TestOnApplyShouldCreateEnvironment(t *testing.T) {
-// 	// given
-// 	var stdout, stderr bytes.Buffer
+func TestOnApplyShouldCreateEnvironment(t *testing.T) {
+	// given
+	var stdout, stderr bytes.Buffer
+	expectedOutputRegexp := ".*Apply complete! Resources: 14 added, 0 changed, 0 destroyed.*"
 
-// 	// when
-// 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "apply", awsAccessKey, awsSecretKey)
+	// when
+	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "apply", awsAccessKey, awsSecretKey)
 
-// 	// then
-// 	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-// 	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
-// }
+	if stderr.Len() > 0 {
+		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
+	}
+
+	outStr := string(stdout.Bytes())
+
+	matched, _ := regexp.MatchString(expectedOutputRegexp, outStr)
+
+	// then
+	if !matched {
+		t.Error("Expected to find expression matching:\n", expectedOutputRegexp, "\nbut found:\n", outStr)
+	}
+
+}
 
 func TestShouldCheckNumberOfVms(t *testing.T) {
 	// given
-	reservationsNumber := 1
+	//reservationsNumber := 1
 	instancesNumber := 1
 
 	session, err := session.NewSession(&aws.Config{Region: aws.String("eu-central-1")})
@@ -186,9 +197,9 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 		t.Fatal("There was an error. ", err)
 	}
 
-	if len(ec2Result.Reservations) != 1 {
-		t.Error("Expected ", reservationsNumber, "reservation(s) got ", ec2Result.Reservations)
-	}
+	//if len(ec2Result.Reservations) != 1 {
+	//	t.Error("Expected ", reservationsNumber, "reservation(s) got ", len(ec2Result.Reservations))
+	//}
 
 	if len(ec2Result.Reservations[0].Instances) != 1 {
 		t.Error("Expected ", instancesNumber, "instance, got ", len(ec2Result.Reservations[0].Instances))
@@ -196,23 +207,45 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 
 }
 
-// func TestOnDestroyPlanShouldDisplayDestroyPlan(t *testing.T) {
-// 	// given
-// 	var stdout, stderr bytes.Buffer
+func TestOnDestroyPlanShouldDisplayDestroyPlan(t *testing.T) {
+	// given
+	var stdout, stderr bytes.Buffer
+	expectedOutputRegexp := "Plan: 0 to add, 0 to change, 14 to destroy"
 
-// 	// when
-// 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan-destroy", awsAccessKey, awsSecretKey)
+	// when
+	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan-destroy", awsAccessKey, awsSecretKey)
 
-// 	//then
-// 	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-// 	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
-// }
+	if stderr.Len() > 0 {
+		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
+	}
 
-// func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
-// 	var stdout, stderr bytes.Buffer
+	outStr := string(stdout.Bytes())
 
-// 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "destroy", awsAccessKey, awsSecretKey)
+	matched, _ := regexp.MatchString(expectedOutputRegexp, outStr)
 
-// 	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-// 	log.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
-// }
+	// then
+	if !matched {
+		t.Error("Expected to find expression matching:\n", expectedOutputRegexp, "\nbut found:\n", outStr)
+	}
+}
+
+func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	expectedOutputRegexp := "Apply complete! Resources: 0 added, 0 changed, 14 destroyed."
+
+	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "destroy", awsAccessKey, awsSecretKey)
+
+	if stderr.Len() > 0 {
+		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
+	}
+
+	outStr := string(stdout.Bytes())
+
+	matched, _ := regexp.MatchString(expectedOutputRegexp, outStr)
+
+	// then
+	if !matched {
+		t.Error("Expected to find expression matching:\n", expectedOutputRegexp, "\nbut found:\n", outStr)
+	}
+}
