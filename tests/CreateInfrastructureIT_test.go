@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -27,21 +26,22 @@ const (
 )
 
 var (
-	awsAccessKey              string = "M_AWS_ACCESS_KEY=" + os.Getenv("AWS_ACCESS_KEY_ID")
-	awsSecretKey              string = "M_AWS_SECRET_KEY=" + os.Getenv("AWS_SECRET_ACCESS_KEY")
-	sharedFilePath                   = filepath.Join(path, "shared")
-	sharedAbsoluteFilePath, _        = filepath.Abs(sharedFilePath)
-	mountDir                         = sharedAbsoluteFilePath + ":/shared"
-	dockerExecPath, _                = exec.LookPath("docker")
+	awsAccessKey              = "M_AWS_ACCESS_KEY=" + os.Getenv("AWS_ACCESS_KEY_ID")
+	awsSecretKey              = "M_AWS_SECRET_KEY=" + os.Getenv("AWS_SECRET_ACCESS_KEY")
+	sharedFilePath            = filepath.Join(path, "shared")
+	sharedAbsoluteFilePath, _ = filepath.Abs(sharedFilePath)
+	mountDir                  = sharedAbsoluteFilePath + ":/shared"
+	dockerExecPath, _         = exec.LookPath("docker")
 )
 
 func TestMain(m *testing.M) {
 
+	cleanup()
 	setup()
 	log.Println("Run tests")
 	exitVal := m.Run()
 	cleanup()
-
+	log.Println("Finish test")
 	os.Exit(exitVal)
 }
 
@@ -58,21 +58,22 @@ func setup() {
 		os.Exit(1)
 	}
 
-	log.Println("sharedAbsoluteFilePath: " + sharedAbsoluteFilePath)
-
-	if something, err := os.Stat(sharedAbsoluteFilePath); os.IsNotExist(err) {
-		fmt.Println(something)
+	if _, err := os.Stat(sharedAbsoluteFilePath); os.IsNotExist(err) {
 		os.Mkdir(sharedAbsoluteFilePath, os.ModePerm)
 	}
 
-	log.Println("generateKeys")
+	log.Println("Generating Keys")
 	utils.GenerateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
 }
 
 func cleanup() {
-	log.Println("Cleanup.")
-	os.RemoveAll(sharedAbsoluteFilePath)
-	log.Println("Finish test")
+	log.Println("Starting cleanup.")
+	err := os.RemoveAll(sharedAbsoluteFilePath)
+	if err != nil {
+		log.Fatal("Cannot remove data folder. ", err)
+		os.Exit(1)
+	}
+	log.Println("Cleanup finished.")
 }
 
 func TestInitShouldCreateProperFileAndFolder(t *testing.T) {
@@ -149,7 +150,6 @@ func TestOnApplyShouldCreateEnvironment(t *testing.T) {
 
 func TestShouldCheckNumberOfVms(t *testing.T) {
 	// given
-	//reservationsNumber := 1
 	instancesNumber := 1
 
 	session, err := session.NewSession(&aws.Config{Region: aws.String("eu-central-1")})
@@ -197,10 +197,6 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 		t.Fatal("There was an error. ", err)
 	}
 
-	//if len(ec2Result.Reservations) != 1 {
-	//	t.Error("Expected ", reservationsNumber, "reservation(s) got ", len(ec2Result.Reservations))
-	//}
-
 	if len(ec2Result.Reservations[0].Instances) != 1 {
 		t.Error("Expected ", instancesNumber, "instance, got ", len(ec2Result.Reservations[0].Instances))
 	}
@@ -230,10 +226,12 @@ func TestOnDestroyPlanShouldDisplayDestroyPlan(t *testing.T) {
 }
 
 func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
+	// given
 	var stdout, stderr bytes.Buffer
 
 	expectedOutputRegexp := "Apply complete! Resources: 0 added, 0 changed, 14 destroyed."
 
+	// when
 	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "destroy", awsAccessKey, awsSecretKey)
 
 	if stderr.Len() > 0 {
