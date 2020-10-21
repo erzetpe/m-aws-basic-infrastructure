@@ -8,10 +8,10 @@ IMAGE_NAME := $(USER)/$(IMAGE):$(VERSION)
 HOST_UID := $(shell id -u)
 HOST_GID := $(shell id -g)
 
-.PHONY: build release metadata
+.PHONY: build release metadata test
 
 warning:
-	$(error Usage: make (build/release/metadata) )
+	$(error Usage: make (build/release/metadata/test) )
 
 build: guard-VERSION guard-IMAGE guard-USER
 	docker build --rm \
@@ -37,3 +37,6 @@ metadata: guard-IMAGE
 	docker run --rm \
 		-t $(IMAGE_NAME) \
 		metadata
+
+test: 
+	@cd $(ROOT_DIR)/tests/ && go test -v -timeout 30m
