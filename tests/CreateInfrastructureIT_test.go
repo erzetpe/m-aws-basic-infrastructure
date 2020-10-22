@@ -50,14 +50,12 @@ func setup() {
 	log.Println("Initialize test")
 	if len(awsAccessKey) == 0 {
 		log.Fatalf("expected non-empty AWS_ACCESS_KEY environment variable")
-		os.Exit(1)
 	}
 	awsAccessKey = "M_AWS_ACCESS_KEY=" + awsAccessKey
 
 	awsSecretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 	if len(awsSecretKey) == 0 {
 		log.Fatalf("expected non-empty AWS_SECRET_KEY environment variable")
-		os.Exit(1)
 	}
 	awsSecretKey = "M_AWS_SECRET_KEY=" + awsSecretKey
 
@@ -74,7 +72,6 @@ func cleanup() {
 	err := os.RemoveAll(sharedAbsoluteFilePath)
 	if err != nil {
 		log.Fatal("Cannot remove data folder. ", err)
-		os.Exit(1)
 	}
 	log.Println("Cleanup finished.")
 }
