@@ -152,7 +152,7 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 	// given
 	instancesNumber := 1
 
-	session, err := session.NewSession(&aws.Config{Region: aws.String("eu-central-1")})
+	newSession, err := session.NewSession(&aws.Config{Region: aws.String("eu-central-1")})
 	if err != nil {
 		t.Fatal("Cannot get session.")
 	}
@@ -160,7 +160,7 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 	// when
 
 	// ec2
-	ec2Client := ec2.New(session)
+	ec2Client := ec2.New(newSession)
 
 	filterParams := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
@@ -176,7 +176,7 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 	ec2Result, err := ec2Client.DescribeInstances(filterParams)
 
 	// rg
-	rgClient := resourcegroups.New(session)
+	rgClient := resourcegroups.New(newSession)
 
 	rgName := "rg-" + moduleName
 
