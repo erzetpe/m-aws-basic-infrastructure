@@ -183,6 +183,9 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 	rgResult, err := rgClient.GetGroup(&resourcegroups.GetGroupInput{
 		GroupName: aws.String(rgName),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	log.Println("rg", rgResult.Group)
 
