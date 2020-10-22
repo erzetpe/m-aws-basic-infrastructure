@@ -26,8 +26,8 @@ const (
 )
 
 var (
-	awsAccessKey              = "M_AWS_ACCESS_KEY=" + os.Getenv("AWS_ACCESS_KEY_ID")
-	awsSecretKey              = "M_AWS_SECRET_KEY=" + os.Getenv("AWS_SECRET_ACCESS_KEY")
+	awsAccessKey              string
+	awsSecretKey              string
 	sharedFilePath            = filepath.Join(path, "shared")
 	sharedAbsoluteFilePath, _ = filepath.Abs(sharedFilePath)
 	mountDir                  = sharedAbsoluteFilePath + ":/shared"
@@ -46,17 +46,20 @@ func TestMain(m *testing.M) {
 }
 
 func setup() {
-
+	awsAccessKey = os.Getenv("AWS_ACCESS_KEY_ID")
 	log.Println("Initialize test")
 	if len(awsAccessKey) == 0 {
 		log.Fatalf("expected non-empty AWS_ACCESS_KEY environment variable")
 		os.Exit(1)
 	}
+	awsAccessKey = "M_AWS_ACCESS_KEY=" + awsAccessKey
 
+	awsSecretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 	if len(awsSecretKey) == 0 {
 		log.Fatalf("expected non-empty AWS_SECRET_KEY environment variable")
 		os.Exit(1)
 	}
+	awsSecretKey = "M_AWS_SECRET_KEY=" + awsSecretKey
 
 	if _, err := os.Stat(sharedAbsoluteFilePath); os.IsNotExist(err) {
 		os.Mkdir(sharedAbsoluteFilePath, os.ModePerm)
