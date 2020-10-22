@@ -52,13 +52,13 @@ func setup() {
 	awsAccessKey = os.Getenv("AWS_ACCESS_KEY_ID")
 	log.Println("Initialize test")
 	if len(awsAccessKey) == 0 {
-		log.Fatalf("expected non-empty AWS_ACCESS_KEY environment variable")
+		log.Fatalf("expected non-empty AWS_ACCESS_KEY_ID environment variable")
 	}
 	awsAccessKey = "M_AWS_ACCESS_KEY=" + awsAccessKey
 
 	awsSecretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 	if len(awsSecretKey) == 0 {
-		log.Fatalf("expected non-empty AWS_SECRET_KEY environment variable")
+		log.Fatalf("expected non-empty AWS_SECRET_ACCESS_KEY environment variable")
 	}
 	awsSecretKey = "M_AWS_SECRET_KEY=" + awsSecretKey
 
