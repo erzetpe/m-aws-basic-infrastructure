@@ -2,10 +2,16 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -14,7 +20,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/resourcegroups"
-	"github.com/epiphany-platform/aws-basic-infrastructure/tests/utils"
 )
 
 const (
@@ -62,7 +67,7 @@ func setup() {
 		log.Fatal(err)
 	}
 	log.Println("Generating Keys")
-	err = utils.GenerateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
+	err = generateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,7 +88,7 @@ func TestInitShouldCreateProperFileAndFolder(t *testing.T) {
 	expectedFileContentRegexp := "kind: state\nawsbi:\n  status: initialized"
 
 	// when
-	utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "init", "M_NAME="+moduleName)
+	runCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "init", "M_NAME="+moduleName)
 
 	data, err := ioutil.ReadFile(stateFilePath)
 
@@ -109,7 +114,7 @@ func TestOnPlanWithDefaultsShouldDisplayPlan(t *testing.T) {
 	expectedOutputRegexp := ".*Plan: 14 to add, 0 to change, 0 to destroy.*"
 
 	// when
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan", awsAccessKey, awsSecretKey)
+	stdout, stderr = runCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan", awsAccessKey, awsSecretKey)
 
 	if stderr.Len() > 0 {
 		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
@@ -132,7 +137,7 @@ func TestOnApplyShouldCreateEnvironment(t *testing.T) {
 	expectedOutputRegexp := ".*Apply complete! Resources: 14 added, 0 changed, 0 destroyed.*"
 
 	// when
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "apply", awsAccessKey, awsSecretKey)
+	stdout, stderr = runCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "apply", awsAccessKey, awsSecretKey)
 
 	if stderr.Len() > 0 {
 		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
@@ -213,7 +218,7 @@ func TestOnDestroyPlanShouldDisplayDestroyPlan(t *testing.T) {
 	expectedOutputRegexp := "Plan: 0 to add, 0 to change, 14 to destroy"
 
 	// when
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan-destroy", awsAccessKey, awsSecretKey)
+	stdout, stderr = runCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "plan-destroy", awsAccessKey, awsSecretKey)
 
 	if stderr.Len() > 0 {
 		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
@@ -236,7 +241,7 @@ func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
 	expectedOutputRegexp := "Apply complete! Resources: 0 added, 0 changed, 14 destroyed."
 
 	// when
-	stdout, stderr = utils.RunCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "destroy", awsAccessKey, awsSecretKey)
+	stdout, stderr = runCommand(dockerExecPath, "run", "--rm", "-v", mountDir, "-t", imageTag, "destroy", awsAccessKey, awsSecretKey)
 
 	if stderr.Len() > 0 {
 		t.Fatal("There was an error during executing a command. ", string(stderr.Bytes()))
@@ -250,4 +255,40 @@ func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
 	if !matched {
 		t.Error("Expected to find expression matching:\n", expectedOutputRegexp, "\nbut found:\n", outStr)
 	}
+}
+
+func runCommand(commandWithParams ...string) (bytes.Buffer, bytes.Buffer) {
+	var stdout, stderr bytes.Buffer
+	dockerRunInit := &exec.Cmd{
+		Path:   commandWithParams[0],
+		Args:   commandWithParams,
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}
+	if err := dockerRunInit.Run(); err != nil {
+		log.Println("Error:", err)
+	}
+
+	return stdout, stderr
+}
+
+func generateRsaKeyPair(directory, name string) error {
+	privateRsaKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return err
+	}
+	pemBlock := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateRsaKey)}
+	privateKeyBytes := pem.EncodeToMemory(pemBlock)
+
+	publicRsaKey, err := ssh.NewPublicKey(&privateRsaKey.PublicKey)
+	if err != nil {
+		return err
+	}
+	publicKeyBytes := ssh.MarshalAuthorizedKey(publicRsaKey)
+
+	err = ioutil.WriteFile(path.Join(directory, name), privateKeyBytes, 0600)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(path.Join(directory, name+".pub"), publicKeyBytes, 0644)
 }
