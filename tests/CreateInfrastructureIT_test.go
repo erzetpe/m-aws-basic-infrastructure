@@ -48,40 +48,6 @@ func TestMain(m *testing.M) {
 	os.Exit(exitVal)
 }
 
-func setup() {
-	awsAccessKey = os.Getenv("AWS_ACCESS_KEY_ID")
-	log.Println("Initialize test")
-	if len(awsAccessKey) == 0 {
-		log.Fatalf("expected non-empty AWS_ACCESS_KEY_ID environment variable")
-	}
-	awsAccessKey = "M_AWS_ACCESS_KEY=" + awsAccessKey
-
-	awsSecretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
-	if len(awsSecretKey) == 0 {
-		log.Fatalf("expected non-empty AWS_SECRET_ACCESS_KEY environment variable")
-	}
-	awsSecretKey = "M_AWS_SECRET_KEY=" + awsSecretKey
-
-	err := os.MkdirAll(sharedAbsoluteFilePath, os.ModePerm)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Generating Keys")
-	err = generateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func cleanup() {
-	log.Println("Starting cleanup.")
-	err := os.RemoveAll(sharedAbsoluteFilePath)
-	if err != nil {
-		log.Fatal("Cannot remove data folder. ", err)
-	}
-	log.Println("Cleanup finished.")
-}
-
 func TestInitShouldCreateProperFileAndFolder(t *testing.T) {
 	// given
 	stateFilePath := "shared/state.yml"
@@ -255,6 +221,40 @@ func TestOnDestroyShouldDestroyEnvironment(t *testing.T) {
 	if !matched {
 		t.Error("Expected to find expression matching:\n", expectedOutputRegexp, "\nbut found:\n", outStr)
 	}
+}
+
+func setup() {
+	awsAccessKey = os.Getenv("AWS_ACCESS_KEY_ID")
+	log.Println("Initialize test")
+	if len(awsAccessKey) == 0 {
+		log.Fatalf("expected non-empty AWS_ACCESS_KEY_ID environment variable")
+	}
+	awsAccessKey = "M_AWS_ACCESS_KEY=" + awsAccessKey
+
+	awsSecretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+	if len(awsSecretKey) == 0 {
+		log.Fatalf("expected non-empty AWS_SECRET_ACCESS_KEY environment variable")
+	}
+	awsSecretKey = "M_AWS_SECRET_KEY=" + awsSecretKey
+
+	err := os.MkdirAll(sharedAbsoluteFilePath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Generating Keys")
+	err = generateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func cleanup() {
+	log.Println("Starting cleanup.")
+	err := os.RemoveAll(sharedAbsoluteFilePath)
+	if err != nil {
+		log.Fatal("Cannot remove data folder. ", err)
+	}
+	log.Println("Cleanup finished.")
 }
 
 func runCommand(commandWithParams ...string) (bytes.Buffer, bytes.Buffer) {
