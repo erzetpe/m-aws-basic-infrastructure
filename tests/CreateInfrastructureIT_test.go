@@ -22,14 +22,12 @@ const (
 	awsTag     = "awsbi-module"
 	moduleName = "awsbi-module"
 	sshKeyName = "vms_rsa"
-	path       = "./"
 )
 
 var (
 	awsAccessKey              string
 	awsSecretKey              string
-	sharedFilePath            = filepath.Join(path, "shared")
-	sharedAbsoluteFilePath, _ = filepath.Abs(sharedFilePath)
+	sharedAbsoluteFilePath, _ = filepath.Abs("./shared")
 	mountDir                  = sharedAbsoluteFilePath + ":/shared"
 	dockerExecPath, _         = exec.LookPath("docker")
 )
