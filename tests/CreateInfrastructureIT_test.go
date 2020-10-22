@@ -59,12 +59,15 @@ func setup() {
 	}
 	awsSecretKey = "M_AWS_SECRET_KEY=" + awsSecretKey
 
-	if _, err := os.Stat(sharedAbsoluteFilePath); os.IsNotExist(err) {
-		os.Mkdir(sharedAbsoluteFilePath, os.ModePerm)
+	err := os.MkdirAll(sharedAbsoluteFilePath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
 	}
-
 	log.Println("Generating Keys")
-	utils.GenerateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
+	err = utils.GenerateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func cleanup() {
