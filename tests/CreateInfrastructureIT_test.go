@@ -22,14 +22,12 @@ const (
 	awsTag     = "awsbi-module"
 	moduleName = "awsbi-module"
 	sshKeyName = "vms_rsa"
-	path       = "./"
 )
 
 var (
-	awsAccessKey              = "M_AWS_ACCESS_KEY=" + os.Getenv("AWS_ACCESS_KEY_ID")
-	awsSecretKey              = "M_AWS_SECRET_KEY=" + os.Getenv("AWS_SECRET_ACCESS_KEY")
-	sharedFilePath            = filepath.Join(path, "shared")
-	sharedAbsoluteFilePath, _ = filepath.Abs(sharedFilePath)
+	awsAccessKey              string
+	awsSecretKey              string
+	sharedAbsoluteFilePath, _ = filepath.Abs("./shared")
 	mountDir                  = sharedAbsoluteFilePath + ":/shared"
 	dockerExecPath, _         = exec.LookPath("docker")
 )
@@ -46,24 +44,28 @@ func TestMain(m *testing.M) {
 }
 
 func setup() {
-
+	awsAccessKey = os.Getenv("AWS_ACCESS_KEY_ID")
 	log.Println("Initialize test")
 	if len(awsAccessKey) == 0 {
 		log.Fatalf("expected non-empty AWS_ACCESS_KEY environment variable")
-		os.Exit(1)
 	}
+	awsAccessKey = "M_AWS_ACCESS_KEY=" + awsAccessKey
 
+	awsSecretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 	if len(awsSecretKey) == 0 {
 		log.Fatalf("expected non-empty AWS_SECRET_KEY environment variable")
-		os.Exit(1)
 	}
+	awsSecretKey = "M_AWS_SECRET_KEY=" + awsSecretKey
 
-	if _, err := os.Stat(sharedAbsoluteFilePath); os.IsNotExist(err) {
-		os.Mkdir(sharedAbsoluteFilePath, os.ModePerm)
+	err := os.MkdirAll(sharedAbsoluteFilePath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
 	}
-
 	log.Println("Generating Keys")
-	utils.GenerateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
+	err = utils.GenerateRsaKeyPair(sharedAbsoluteFilePath, sshKeyName)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func cleanup() {
@@ -71,7 +73,6 @@ func cleanup() {
 	err := os.RemoveAll(sharedAbsoluteFilePath)
 	if err != nil {
 		log.Fatal("Cannot remove data folder. ", err)
-		os.Exit(1)
 	}
 	log.Println("Cleanup finished.")
 }
@@ -152,7 +153,7 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 	// given
 	instancesNumber := 1
 
-	session, err := session.NewSession(&aws.Config{Region: aws.String("eu-central-1")})
+	newSession, err := session.NewSession(&aws.Config{Region: aws.String("eu-central-1")})
 	if err != nil {
 		t.Fatal("Cannot get session.")
 	}
@@ -160,11 +161,11 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 	// when
 
 	// ec2
-	ec2Client := ec2.New(session)
+	ec2Client := ec2.New(newSession)
 
 	filterParams := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
-			&ec2.Filter{
+			{
 				Name: aws.String("tag:Name"),
 				Values: []*string{
 					aws.String(awsTag),
@@ -176,13 +177,16 @@ func TestShouldCheckNumberOfVms(t *testing.T) {
 	ec2Result, err := ec2Client.DescribeInstances(filterParams)
 
 	// rg
-	rgClient := resourcegroups.New(session)
+	rgClient := resourcegroups.New(newSession)
 
 	rgName := "rg-" + moduleName
 
 	rgResult, err := rgClient.GetGroup(&resourcegroups.GetGroupInput{
 		GroupName: aws.String(rgName),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	log.Println("rg", rgResult.Group)
 

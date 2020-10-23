@@ -38,5 +38,5 @@ metadata: guard-IMAGE
 		-t $(IMAGE_NAME) \
 		metadata
 
-test: 
+test: guard-AWS_ACCESS_KEY_ID guard-AWS_SECRET_ACCESS_KEY
 	@cd $(ROOT_DIR)/tests/ && go test -v -timeout 30m
