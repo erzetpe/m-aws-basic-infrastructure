@@ -14,6 +14,7 @@ variables:
 
 jobs:
   - job: Test
+    displayName: 'test module'
     steps:
       - task: UsePythonVersion@0
         displayName: 'Use Python 3.7'
@@ -35,7 +36,7 @@ jobs:
             unzip awscliv2.zip
             ./aws/install --update
       - task: GoTool@0
-        displayName: 'Instal GO'
+        displayName: 'Install GO'
         inputs:
           version: '1.15.2'
       - task: Bash@3
@@ -66,6 +67,7 @@ jobs:
             echo "---------------------------------------------------------------"
             docker rmi $(REPOSITORY_NAME)/$(IMAGE_NAME):$(MAJOR_VERSION) --force
   - job: Publish
+    displayName: 'build/push docker image'
     dependsOn: Test
     condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/develop'))
     steps:
@@ -78,7 +80,7 @@ jobs:
              echo "##vso[task.setvariable variable=REPOSITORY_NAME]$(make print-USER)"
              echo "##vso[task.setvariable variable=IMAGE_NAME]$(make print-IMAGE)"
        - task: Bash@3
-         displayName: 'Print Variables'
+         displayName: 'Print Build Variables'
          inputs:
            targetType: 'inline'
            script: |
@@ -87,7 +89,7 @@ jobs:
              echo "IMAGE_NAME: $(IMAGE_NAME)"
              echo "Build.BuildId: $(Build.BuildId)"
        - task: Docker@2
-         displayName: 'Build and Push Image'
+         displayName: 'Build and Push Docker Image'
          inputs:
            containerRegistry: $(registry_name)
            command: buildAndPush
