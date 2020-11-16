@@ -13,94 +13,103 @@ variables:
   WORK_DIR: $(System.DefaultWorkingDirectory)
 
 jobs:
-  - job: Test
-    displayName: 'test module'
+  - job: Build
+    displayName: 'Build Docker Image'
     steps:
-      - task: UsePythonVersion@0
-        displayName: 'Use Python 3.7'
-        inputs:
-          versionSpec: '3.7'
-          addToPath: true
-      - task: CmdLine@2
-        displayName: 'Install Dependencies'
-        inputs:
-          script: |
-            add-apt-repository ppa:deadsnakes/ppa -y
-            apt update
-            apt-get install -y --no-install-recommends python3.7
-            python3 -m pip install yt
-            apt-get install -y wget make ssh curl bc unzip
-            wget https://github.com/mikefarah/yq/releases/download/3.3.4/yq_linux_amd64 -O /usr/bin/yq && \
-              chmod +x /usr/bin/yq
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            ./aws/install --update
-      - task: GoTool@0
-        displayName: 'Install GO'
-        inputs:
-          version: '1.15.2'
       - task: Bash@3
-        displayName: 'Read and Set Variables'
+        displayName: 'Set Build Variables'
         inputs:
           targetType: 'inline'
           script: |
             echo "##vso[task.setvariable variable=MAJOR_VERSION]$(make print-VERSION)"
             echo "##vso[task.setvariable variable=REPOSITORY_NAME]$(make print-USER)"
             echo "##vso[task.setvariable variable=IMAGE_NAME]$(make print-IMAGE)"
-            echo "##vso[task.setvariable variable=PATH]$(echo $GOPATH:$GOBIN:$PATH)"
+      - task: Docker@2
+        displayName: 'Build Image'
+        inputs:
+          command: build
+          repository: $(REPOSITORY_NAME)/$(IMAGE_NAME)
+          tags: $(MAJOR_VERSION).$(Build.BuildId)
+          Dockerfile: $(System.DefaultWorkingDirectory)/Dockerfile
+          buildContext: $(System.DefaultWorkingDirectory)
+  - job: Test
+    displayName: 'Run tests'   
+    steps:
       - task: Bash@3
-        displayName: 'Run Tests'
+        displayName: 'Set Build Variables'
         inputs:
           targetType: 'inline'
           script: |
-            set -eu
-            echo "Start make test"
-            export AWS_ACCESS_KEY_ID=$(AWS_ACCESS_KEY_ID)
-            export AWS_SECRET_ACCESS_KEY=$(AWS_SECRET_ACCESS_KEY)
-            make test  
-          failOnStderr: true
+            echo "##vso[task.setvariable variable=MAJOR_VERSION]$(make print-VERSION)"
+            echo "##vso[task.setvariable variable=REPOSITORY_NAME]$(make print-USER)"
+            echo "##vso[task.setvariable variable=IMAGE_NAME]$(make print-IMAGE)"
       - task: CmdLine@2
-        displayName: 'Delete created image'
+        displayName: 'Install Dependencies'
+        inputs:
+          script: |
+            apt update
+            apt-get install -y gcc
+            echo $AWSBI_IMAGE_TAG
+        env: 
+          AWSBI_IMAGE_TAG: $(REPOSITORY_NAME)/$(IMAGE_NAME):$(MAJOR_VERSION).$(Build.BuildId)
+      - task: GoTool@0
+        displayName: 'ensure Go 1.15.2'
+        inputs:
+          version: '1.15.2'
+      - task: Go@0
+        displayName: 'go get go-junit-report'
+        inputs:
+          command: get
+          arguments: '-u github.com/jstemmer/go-junit-report'
+      - task: Bash@3
+        displayName: 'Prepend PATH'
+        inputs:
+          targetType: 'inline'
+          script: |
+            echo "##vso[task.prependpath]/tools/go/1.15.2/x64/bin"
+          failOnStderr: true
+      - task: Bash@3
+        displayName: 'go test'
+        inputs:
+          targetType: 'inline'
+          script: |
+            echo $AWSBI_IMAGE_TAG
+            make test 2>&1 | tee tests.output
+            go-junit-report < tests.output > report.xml
+          failOnStderr: true
+        env:
+          AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+          AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+          AWSBI_IMAGE_TAG: $(REPOSITORY_NAME)/$(IMAGE_NAME):$(MAJOR_VERSION).$(Build.BuildId)
+      - task: PublishTestResults@2
+        inputs:
+          testRunner: JUnit
+          testResultsFiles: $(System.DefaultWorkingDirectory)/**/report.xml
+          failTaskOnFailedTests: true
+  - job: Push
+    dependsOn: Test
+    condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/feature/yaml-pipeline'))
+    displayName: 'Push Docker Image'
+    steps:
+      - task: Bash@3
+        displayName: 'Set Build Variables'
+        inputs:
+          targetType: 'inline'
+          script: |
+            echo "##vso[task.setvariable variable=MAJOR_VERSION]$(make print-VERSION)"
+            echo "##vso[task.setvariable variable=REPOSITORY_NAME]$(make print-USER)"
+            echo "##vso[task.setvariable variable=IMAGE_NAME]$(make print-IMAGE)"
+      - task: Docker@2
+        displayName: 'Push Image'
+        inputs:
+          containerRegistry: $(registry_name)
+          command: push
+          repository: $(REPOSITORY_NAME)/$(IMAGE_NAME)
+          tags: $(MAJOR_VERSION).$(Build.BuildId)
+      - task: CmdLine@2
+        displayName: 'Cleanup Local Image'
         inputs:
           script: |
             echo "Removing image"
             echo "---------------------------------------------------------------"
-            docker rmi $(REPOSITORY_NAME)/$(IMAGE_NAME):$(MAJOR_VERSION) --force
-  - job: Publish
-    displayName: 'build/push docker image'
-    dependsOn: Test
-    condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/develop'))
-    steps:
-       - task: Bash@3
-         displayName: 'Set Build Variables'
-         inputs:
-           targetType: 'inline'
-           script: |
-             echo "##vso[task.setvariable variable=MAJOR_VERSION]$(make print-VERSION)"
-             echo "##vso[task.setvariable variable=REPOSITORY_NAME]$(make print-USER)"
-             echo "##vso[task.setvariable variable=IMAGE_NAME]$(make print-IMAGE)"
-       - task: Bash@3
-         displayName: 'Print Build Variables'
-         inputs:
-           targetType: 'inline'
-           script: |
-             echo "MAJOR_VERSION: $(MAJOR_VERSION)"
-             echo "REPOSITORY_NAME: $(REPOSITORY_NAME)"
-             echo "IMAGE_NAME: $(IMAGE_NAME)"
-             echo "Build.BuildId: $(Build.BuildId)"
-       - task: Docker@2
-         displayName: 'Build and Push Docker Image'
-         inputs:
-           containerRegistry: $(registry_name)
-           command: buildAndPush
-           repository: $(REPOSITORY_NAME)/$(IMAGE_NAME)
-           tags: $(MAJOR_VERSION).$(Build.BuildId)
-           Dockerfile: $(System.DefaultWorkingDirectory)/Dockerfile
-           buildContext: $(System.DefaultWorkingDirectory)
-       - task: CmdLine@2
-         displayName: 'Cleanup Local Image'
-         inputs:
-           script: |
-             echo "Removing image"
-             echo "---------------------------------------------------------------"
-             docker rmi $(registry_name)/$(REPOSITORY_NAME)/$(IMAGE_NAME):$(MAJOR_VERSION).$(Build.BuildId)
+            docker rmi $(registry_name)/$(REPOSITORY_NAME)/$(IMAGE_NAME):$(MAJOR_VERSION).$(Build.BuildId)
