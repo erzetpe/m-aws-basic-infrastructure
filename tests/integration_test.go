@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
@@ -358,11 +357,12 @@ func runDocker(t *testing.T, params ...string) (bytes.Buffer, bytes.Buffer) {
 		Stderr: &stderr,
 	}
 
-	fmt.Println("%v", commandWithParams)
-
 	if err := command.Run(); err != nil {
 		t.Fatal("There was an error running command:", err)
 	}
+
+    t.Log("Stdout: ", string(stdout.Bytes()))
+    t.Log("Stderr: ", string(stderr.Bytes()))
 
 	return stdout, stderr
 }
